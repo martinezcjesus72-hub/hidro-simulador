@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador de acueducto – Santa Marta, Magdalena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+/* ===== Tokens ===== */
+:root{
+  --bg:#E9F0F2; --card:#fff; --line:#D3E0E4; --ink:#10262E; --mute:#5A727B;
+  --deep:#0B3140; --teal:#0E8794; --blue:#2B6CB0; --violet:#6B5CA5; --amber:#C98A04; --red:#C73E52;
+  --font:'Figtree',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-variant-numeric:tabular-nums;line-height:1.45}
+header{background:var(--deep);color:#fff;padding:18px clamp(14px,3vw,32px)}
+header .in{max-width:1400px;margin:auto;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
+h1{margin:0;font-size:clamp(1.2rem,2.4vw,1.7rem);font-weight:700;letter-spacing:-.01em}
+header p{margin:2px 0 0;color:#A9C6CF;font-size:.92rem}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid #3C6577;background:transparent;color:#fff;padding:8px 14px;font-weight:600}
+button:hover{background:#14485C}
+button.main{background:var(--teal);border-color:var(--teal)}
+button:focus-visible,input:focus-visible{outline:3px solid #7FD3DC;outline-offset:2px}
+main{max-width:1400px;margin:auto;padding:18px clamp(14px,3vw,32px) 40px;display:grid;grid-template-columns:340px 1fr;gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+h2{font-size:1.02rem;margin:0 0 10px;font-weight:700}
+h3{font-size:.9rem;margin:16px 0 8px;color:var(--teal);font-weight:700}
+/* ===== Controles ===== */
+aside{align-self:start;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+.ctl{margin-bottom:12px}
+.ctl label{display:flex;justify-content:space-between;font-size:.86rem;font-weight:600;margin-bottom:4px}
+.ctl label b{color:var(--mute);font-weight:500}
+.row{display:flex;gap:10px;align-items:center}
+input[type=range]{flex:1;accent-color:var(--teal);min-width:0}
+input[type=number]{width:96px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font:inherit;text-align:right}
+/* ===== KPIs ===== */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:18px}
+.kpi{background:var(--card);border:1px solid var(--line);border-top:4px solid var(--c);border-radius:12px;padding:14px 16px}
+.kpi span{font-size:.84rem;color:var(--mute);font-weight:600}
+.kpi strong{display:block;font-size:clamp(1.5rem,2.6vw,2rem);line-height:1.15;margin:4px 0;letter-spacing:-.02em}
+.kpi small{color:var(--mute)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+.chart{position:relative;height:290px}
+/* ===== Tanque (elemento visual principal) ===== */
+.tankbox{display:grid;grid-template-columns:110px 1fr;gap:18px;align-items:stretch}
+.tank{position:relative;border:3px solid var(--deep);border-top:none;border-radius:0 0 14px 14px;height:290px;overflow:hidden;background:#F4F9FA}
+.fill{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(#4FB4C4,#1C7C9A);transition:height .35s ease,background .35s}
+.tank .lbl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--deep);text-shadow:0 0 6px #fff}
+.chip{display:inline-block;padding:4px 10px;border-radius:99px;font-size:.82rem;font-weight:700;color:#fff;margin:0 6px 6px 0}
+.ok{background:var(--teal)} .warn{background:var(--amber)} .bad{background:var(--red)}
+dl{display:grid;grid-template-columns:1fr auto;gap:6px 12px;margin:0;font-size:.9rem}
+dt{color:var(--mute)} dd{margin:0;font-weight:700;text-align:right}
+.note{font-size:.82rem;color:var(--mute);margin-top:10px}
+/* ===== Modal ===== */
+dialog{max-width:760px;width:calc(100% - 24px);border:none;border-radius:14px;padding:0;color:var(--ink)}
+dialog::backdrop{background:rgba(8,28,36,.6)}
+.mh{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;background:var(--deep);color:#fff}
+.mh h2{margin:0}
+.mb{padding:6px 20px 20px;max-height:72vh;overflow:auto}
+.eq{background:#EEF5F7;border-left:4px solid var(--teal);padding:8px 12px;margin:6px 0;border-radius:0 8px 8px 0;font-size:1rem;overflow-x:auto;white-space:nowrap}
+@media(max-width:960px){
+  main{grid-template-columns:1fr} aside{position:static;max-height:none}
+  .grid2{grid-template-columns:1fr}
+}
+@media(max-width:520px){.tankbox{grid-template-columns:80px 1fr}}
+@media(prefers-reduced-motion:reduce){.fill{transition:none}}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <div>
+    <h1>Simulador de acueducto · Santa Marta, Magdalena</h1>
+    <p>Balance de tanque, presión, costo de bombeo y sección óptima de canal</p>
+  </div>
+  <div class="btns">
+    <button data-p="normal">Operación normal</button>
+    <button data-p="seca">Temporada seca</button>
+    <button data-p="mitig">Plan de mitigación</button>
+    <button class="main" id="openM">Ver fórmulas</button>
+  </div>
+</div></header>
+
+<main>
+  <aside class="card"><h2>Parámetros</h2><div id="controls"></div></aside>
+
+  <section>
+    <div class="kpis">
+      <div class="kpi" style="--c:var(--teal)"><span>Caudal actual</span><strong id="k1">0.00 L/s</strong><small id="k1s"></small></div>
+      <div class="kpi" style="--c:var(--blue)"><span>Nivel del tanque</span><strong id="k2">0.00 m</strong><small id="k2s"></small></div>
+      <div class="kpi" style="--c:var(--violet)"><span>Presión estimada</span><strong id="k3">0.00 kPa</strong><small id="k3s"></small></div>
+      <div class="kpi" style="--c:var(--amber)"><span>Costo de bombeo mensual</span><strong id="k4">$ 0.00</strong><small id="k4s"></small></div>
+    </div>
+
+    <div class="card">
+      <h2>Evolución del nivel del tanque (24 h)</h2>
+      <div class="tankbox">
+        <div class="tank"><div class="fill" id="fill"></div><div class="lbl" id="tlbl"></div></div>
+        <div>
+          <div id="chips"></div>
+          <div class="chart" style="height:250px"><canvas id="cLvl"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><h2>Proyección de costo de bombeo (30 días)</h2><div class="chart"><canvas id="cCost"></canvas></div></div>
+      <div class="card"><h2>Sección rectangular óptima: A(y) = −2y² + P·y</h2><div class="chart"><canvas id="cPar"></canvas></div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><h2>Balance, fricción y bombeo</h2><dl id="r1"></dl>
+        <p class="note">La fricción lineal (laminar) se muestra siempre. Si Re &gt; 2300 el flujo es turbulento y la presión usa Hazen-Williams (C = 130), porque la relación lineal subestimaría las pérdidas.</p></div>
+      <div class="card"><h2>Optimización del canal</h2><dl id="r2"></dl>
+        <p class="note">Con perímetro mojado P fijo, el área se maximiza en y* = P/4 y b* = P/2. Caudal por Manning (n = 0.013).</p></div>
+    </div>
+  </section>
+</main>
+
+<!-- ===== Modal de fórmulas ===== -->
+<dialog id="dlg">
+  <div class="mh"><h2>Fundamento matemático</h2><button id="closeM">Cerrar</button></div>
+  <div class="mb">
+    <h3>1. Balance del tanque (ecuación lineal)</h3>
+    <div class="eq">Δh = (Q<sub>in</sub> − Q<sub>out</sub>) · 3.6 · Δt / A<sub>t</sub> &nbsp; [m ; L/s ; h ; m²]</div>
+    <h3>2. Costo de bombeo (función lineal)</h3>
+    <div class="eq">C(V) = V · T<sub>ef</sub> + F &nbsp;&nbsp; (ejemplo: C(V) = 250·V + 1500)</div>
+    <div class="eq">T<sub>ef</sub> = e · T<sub>kWh</sub> ; e = ρ·g·H<sub>b</sub> / (η · 3.6×10<sup>6</sup>) [kWh/m³]</div>
+    <p>Pendiente = tarifa efectiva por m³ impulsado; intercepto = cargo fijo. Si e = 1 kWh/m³ se obtiene exactamente C(V) = V·Tarifa + Cargo fijo. V mensual = Q<sub>in</sub> · 2592 [m³].</p>
+    <h3>3. Pérdida de carga lineal, régimen laminar (Hagen-Poiseuille)</h3>
+    <div class="eq">h<sub>f</sub> = k<sub>f</sub> · L · Q ; k<sub>f</sub> = 128·ν / (π·g·D⁴)</div>
+    <div class="eq">Re = v·D/ν ; v = 4Q/(πD²) ; laminar si Re ≤ 2300</div>
+    <div class="eq">Turbulento: h<sub>f</sub> = 10.67·L·Q<sup>1.852</sup> / (C<sup>1.852</sup>·D<sup>4.871</sup>)</div>
+    <h3>4. Presión en el nodo de consumo</h3>
+    <div class="eq">P = γ · [ (z<sub>t</sub> + h) − z<sub>n</sub> − h<sub>f</sub> ] ; γ = 9.81 kN/m³</div>
+    <h3>5. Optimización cuadrática de la sección rectangular</h3>
+    <p>Perímetro mojado fijo: P = b + 2y, entonces b = P − 2y.</p>
+    <div class="eq">A(y) = y·(P − 2y) = −2y² + P·y &nbsp; (a = −2, b = P, c = 0)</div>
+    <div class="eq">Vértice: y* = −b/(2a) = P/4 ; b* = P/2 ; A<sub>máx</sub> = P²/8</div>
+    <div class="eq">A(y) = A<sub>obj</sub> ⇒ 2y² − P·y + A<sub>obj</sub> = 0 ⇒ y = [P ± √(P² − 8·A<sub>obj</sub>)] / 4</div>
+    <p>Existen soluciones reales si el discriminante P² − 8·A<sub>obj</sub> ≥ 0, es decir A<sub>obj</sub> ≤ P²/8.</p>
+    <h3>6. Caudal del canal (Manning)</h3>
+    <div class="eq">Q = (1/n) · A · R<sup>2/3</sup> · S<sup>1/2</sup> ; R = A/P ; en el óptimo R = y*/2</div>
+    <h3>7. Precisión numérica</h3>
+    <p>Todos los cálculos usan punto flotante de doble precisión (IEEE 754); la interfaz formatea a 2 decimales con Intl.NumberFormat.</p>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+/* ============ Constantes físicas ============ */
+const G = 9.81, NU = 0.85e-6, ETA = 0.70, CHW = 130, MANN_N = 0.013, DT = 0.25, STEPS = 96;
+
+/* ============ Utilidades de formato ============ */
+const $ = id => document.getElementById(id);
+const nf = new Intl.NumberFormat('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const f2 = x => nf.format(isFinite(x) ? x : 0);
+const money = x => '$ ' + f2(x);
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+
+/* ============ Definición de controles: [id, etiqueta, unidad, min, max, paso, valor] ============ */
+const GROUPS = [
+  ['Caudales y tubería', [
+    ['qin','Caudal de entrada','L/s',0,50,0.05,28.5],
+    ['qout','Caudal de salida (consumo)','L/s',0,45,0.05,32.4],
+    ['dia','Diámetro tubería principal','m',0.1,1,0.01,0.30],
+    ['len','Longitud de la tubería','m',100,10000,50,2500]]],
+  ['Energía', [
+    ['tar','Tarifa de energía','$/kWh',0,2000,10,780],
+    ['fijo','Cargo fijo mensual','$',0,5000000,10000,850000]]],
+  ['Tanque y cotas', [
+    ['area','Área del tanque','m²',50,2000,10,600],
+    ['hmax','Altura útil','m',1,12,0.1,6],
+    ['h0','Nivel inicial','m',0,12,0.05,3],
+    ['zt','Cota del fondo del tanque','m',10,120,0.5,45],
+    ['zn','Cota del nodo de consumo','m',0,60,0.5,12.5],
+    ['zp','Cota de captación','m',0,30,0.5,3]]],
+  ['Canal de aducción', [
+    ['per','Perímetro mojado P','m',0.3,6,0.05,0.9],
+    ['y','Tirante y','m',0.05,3,0.01,0.2],
+    ['sl','Pendiente S','m/m',0.0005,0.01,0.0005,0.001],
+    ['aobj','Área objetivo','m²',0.02,1.8,0.01,0.08]]],
+  ['Simulación', [
+    ['hr','Hora analizada','h',0,24,0.25,12]]]
+];
+const META = {};   // id -> {min,max}
+const V = {};      // valores actuales
+
+/* Construye sliders + campos numéricos sincronizados */
+function buildControls() {
+  let html = '';
+  GROUPS.forEach(([title, items]) => {
+    html += `<h3>${title}</h3>`;
+    items.forEach(([id, lab, un, min, max, step, val]) => {
+      META[id] = {min, max};
+      html += `<div class="ctl"><label for="${id}n">${lab} <b>${un}</b></label>
+        <div class="row">
+          <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}" aria-label="${lab}">
+          <input type="number" id="${id}n" min="${min}" max="${max}" step="${step}" value="${val}">
+        </div></div>`;
+    });
+  });
+  $('controls').innerHTML = html;
+  Object.keys(META).forEach(id => {
+    $(id).addEventListener('input', () => { $(id + 'n').value = $(id).value; update(); });
+    $(id + 'n').addEventListener('input', () => {
+      if ($(id + 'n').value !== '') $(id).value = $(id + 'n').value;
+      update();
+    });
+  });
+}
+const setVal = (id, v) => { $(id).value = v; $(id + 'n').value = v; };
+function setMax(id, m) {            // límites dependientes (y ≤ P/2, h0 ≤ hmax)
+  META[id].max = m; $(id).max = m; $(id + 'n').max = m;
+  if (parseFloat($(id + 'n').value) > m) setVal(id, m);
+}
+function readValues() {
+  Object.keys(META).forEach(id => {
+    const v = parseFloat($(id + 'n').value);
+    V[id] = clamp(isNaN(v) ? META[id].min : v, META[id].min, META[id].max);
+  });
+}
+
+/* ============ NÚCLEO MATEMÁTICO ============ */
+
+/* (Lineal) Costo de bombeo: C(V) = V·T + F */
+const costo = (vol, tarifa, fijo) => vol * tarifa + fijo;
+
+/* (Lineal / empírica) Pérdida de carga. Q en L/s.
+   Laminar: hf = kf·L·Q (lineal en L y Q).  Turbulento: Hazen-Williams. */
+function friccion(qLs) {
+  const Q = qLs / 1000, D = V.dia, L = V.len;
+  const kf = 128 * NU / (Math.PI * G * Math.pow(D, 4));
+  const lam = kf * L * Q;
+  const hw = 10.67 * L * Math.pow(Q, 1.852) / (Math.pow(CHW, 1.852) * Math.pow(D, 4.871));
+  const v = Q / (Math.PI * D * D / 4), Re = v * D / NU;
+  const laminar = Re <= 2300;
+  return {kf, lam, hw, v, Re, laminar, uso: laminar ? lam : hw};
+}
+
+/* (Cuadrática) Área rectangular con perímetro mojado fijo P: A(y) = −2y² + P·y */
+const areaCanal = y => y * (V.per - 2 * y);
+const manning = (A, P, R) => (1 / MANN_N) * A * Math.pow(R, 2 / 3) * Math.sqrt(V.sl) * 1000; // L/s
+
+/* Simulación del tanque (paso 0.25 h, 24 h) */
+function simular() {
+  const k = 3.6 * DT, Vmax = V.area * V.hmax;       // m³ por (L/s) en un paso
+  let vol = V.area * Math.min(V.h0, V.hmax), deficit = 0, rebose = 0;
+  const lvl = [vol / V.area];
+  const qd = [(vol <= 0 && V.qin < V.qout) ? V.qin : V.qout];  // caudal efectivamente entregado
+  for (let i = 1; i <= STEPS; i++) {
+    const raw = vol + (V.qin - V.qout) * k;
+    let del = V.qout;
+    if (raw < 0) { del = (vol + V.qin * k) / k; deficit += (V.qout - del) * k; vol = 0; }
+    else if (raw > Vmax) { rebose += raw - Vmax; vol = Vmax; }
+    else vol = raw;
+    lvl.push(vol / V.area); qd.push(del);
+  }
+  return {lvl, qd, deficit, rebose};
+}
+
+/* ============ Gráficas ============ */
+let cLvl, cCost, cPar, idxSel = 48;
+function initCharts() {
+  Chart.defaults.font.family = "Figtree, system-ui, sans-serif";
+  const base = {responsive: true, maintainAspectRatio: false, animation: false,
+    plugins: {legend: {position: 'bottom', labels: {boxWidth: 12}}}};
+  cLvl = new Chart($('cLvl'), {type: 'line', options: {...base,
+    scales: {x: {title: {display: true, text: 'Tiempo (h)'}, ticks: {maxTicksLimit: 13}},
+             y: {title: {display: true, text: 'Nivel (m)'}, min: 0}}},
+    data: {labels: [], datasets: [
+      {label: 'Nivel (m)', data: [], borderColor: '#1C7C9A', backgroundColor: 'rgba(28,124,154,.18)', fill: true,
+       tension: .15, borderWidth: 2.5, pointRadius: c => c.dataIndex === idxSel ? 6 : 0, pointBackgroundColor: '#C73E52'},
+      {label: 'Altura útil (m)', data: [], borderColor: '#C98A04', borderDash: [6, 4], pointRadius: 0, borderWidth: 1.5}]}});
+  cCost = new Chart($('cCost'), {type: 'line', options: {...base,
+    scales: {x: {title: {display: true, text: 'Día del mes'}},
+             y: {title: {display: true, text: 'Costo acumulado ($)'}, ticks: {callback: v => (v / 1e6).toFixed(1) + ' M'}}}},
+    data: {labels: [], datasets: [
+      {label: 'C(V) acumulado', data: [], borderColor: '#C98A04', backgroundColor: 'rgba(201,138,4,.15)', fill: true, pointRadius: 0, borderWidth: 2.5},
+      {label: 'Cargo fijo', data: [], borderColor: '#5A727B', borderDash: [5, 4], pointRadius: 0, borderWidth: 1.5}]}});
+  cPar = new Chart($('cPar'), {type: 'scatter', options: {...base,
+    scales: {x: {type: 'linear', title: {display: true, text: 'Tirante y (m)'}},
+             y: {title: {display: true, text: 'Área A (m²)'}, min: 0}}},
+    data: {datasets: [
+      {label: 'A(y)', data: [], showLine: true, borderColor: '#6B5CA5', pointRadius: 0, borderWidth: 2.5, tension: .1},
+      {label: 'Máximo (y*, A máx)', data: [], backgroundColor: '#C73E52', pointRadius: 8},
+      {label: 'Diseño actual', data: [], backgroundColor: '#0E8794', pointRadius: 6}]}});
+}
+
+/* ============ Actualización completa ============ */
+function update() {
+  readValues();
+  setMax('h0', V.hmax); setMax('y', +(V.per / 2 - 0.05).toFixed(2));
+  readValues();
+
+  /* --- Tanque --- */
+  const S = simular();
+  idxSel = Math.round(V.hr / DT);
+  const h = S.lvl[idxSel], q = S.qd[idxSel], pct = 100 * h / V.hmax;
+
+  /* --- Presión en el nodo --- */
+  const fOut = friccion(q);
+  const carga = Math.max(0, V.zt + h - V.zn - fOut.uso);       // m.c.a.
+  const P = G * carga;                                           // kPa (γ = 9.81 kN/m³)
+
+  /* --- Bombeo --- */
+  const fIn = friccion(V.qin);
+  const Hb = Math.max(0, V.zt + h - V.zp + fIn.uso);            // altura dinámica (m)
+  const e = 1000 * G * Hb / (ETA * 3.6e6);                       // kWh/m³
+  const Tef = e * V.tar;                                         // $/m³
+  const Vday = V.qin * 3.6 * 24, Vmes = Vday * 30;               // m³
+  const Cmes = costo(Vmes, Tef, V.fijo);
+
+  /* --- Canal (cuadrática) --- */
+  const ys = V.per / 4, bs = V.per / 2, Amax = V.per * V.per / 8;
+  const Ac = areaCanal(V.y), bc = V.per - 2 * V.y;
+  const Qc = manning(Ac, V.per, Ac / V.per), Qo = manning(Amax, V.per, ys / 2);
+  const disc = V.per * V.per - 8 * V.aobj;
+  const raices = disc >= 0
+    ? `${f2((V.per - Math.sqrt(disc)) / 4)} y ${f2((V.per + Math.sqrt(disc)) / 4)} m`
+    : 'sin solución (A obj > A máx)';
+
+  /* --- KPIs --- */
+  $('k1').textContent = f2(q) + ' L/s';
+  $('k1s').textContent = `Entrada ${f2(V.qin)} · Consumo ${f2(V.qout)} L/s`;
+  $('k2').textContent = f2(h) + ' m';
+  $('k2s').textContent = `${f2(pct)} % de ${f2(V.hmax)} m · ${f2(h * V.area)} m³`;
+  $('k3').textContent = f2(P) + ' kPa';
+  $('k3s').textContent = `${f2(carga)} m.c.a. en el nodo`;
+  $('k4').textContent = money(Cmes);
+  $('k4s').textContent = `${f2(Vmes)} m³/mes · ${f2(Tef)} $/m³`;
+
+  /* --- Tanque visual y estado --- */
+  $('fill').style.height = clamp(pct, 0, 100) + '%';
+  $('fill').style.background = pct < 10 ? 'linear-gradient(#E58A97,#C73E52)' : '';
+  $('tlbl').textContent = f2(pct) + ' %';
+  let chips = '';
+  if (S.deficit > 0) chips += `<span class="chip bad">Desabastecimiento: ${f2(S.deficit)} m³ sin servir</span>`;
+  else if (pct < 20) chips += `<span class="chip warn">Nivel bajo</span>`;
+  if (S.rebose > 0) chips += `<span class="chip warn">Rebose: ${f2(S.rebose)} m³</span>`;
+  if (P < 98.1) chips += `<span class="chip bad">Presión menor a 10 m.c.a.</span>`;
+  if (!chips) chips = `<span class="chip ok">Operación estable</span>`;
+  $('chips').innerHTML = chips;
+
+  /* --- Tablas de resultados --- */
+  const net = V.qin - V.qout;
+  const tLim = net < 0 ? h * V.area / (-net * 3.6) : net > 0 ? (V.hmax - h) * V.area / (net * 3.6) : NaN;
+  const row = (a, b) => `<dt>${a}</dt><dd>${b}</dd>`;
+  $('r1').innerHTML =
+    row('Balance neto Q in − Q out', f2(net) + ' L/s') +
+    row(net < 0 ? 'Horas hasta vaciarse' : 'Horas hasta llenarse', isNaN(tLim) ? '—' : f2(tLim) + ' h') +
+    row('Déficit acumulado (24 h)', f2(S.deficit) + ' m³') +
+    row('Velocidad en la tubería', f2(fOut.v) + ' m/s') +
+    row('Reynolds · régimen', `${f2(fOut.Re)} · ${fOut.laminar ? 'laminar' : 'turbulento'}`) +
+    row('k<sub>f</sub> = 128ν/(πgD⁴)', f2(fOut.kf) + ' s/m²') +
+    row('h<sub>f</sub> lineal laminar', f2(fOut.lam) + ' m') +
+    row('h<sub>f</sub> aplicada en presión', f2(fOut.uso) + ' m') +
+    row('Altura de bombeo H<sub>b</sub>', f2(Hb) + ' m') +
+    row('Energía específica e', f2(e) + ' kWh/m³') +
+    row('Volumen mensual V', f2(Vmes) + ' m³') +
+    row('C(V) = V·T<sub>ef</sub> + F', money(Cmes));
+  $('r2').innerHTML =
+    row('Tirante óptimo y* = P/4', f2(ys) + ' m') +
+    row('Ancho óptimo b* = P/2', f2(bs) + ' m') +
+    row('Área máxima P²/8', f2(Amax) + ' m²') +
+    row('Ancho actual b = P − 2y', f2(bc) + ' m') +
+    row('Área actual A(y)', f2(Ac) + ' m²') +
+    row('Eficiencia A / A máx', f2(100 * Ac / Amax) + ' %') +
+    row('Q Manning actual', f2(Qc) + ' L/s') +
+    row('Q Manning óptimo', f2(Qo) + ' L/s') +
+    row('Raíces para A obj', raices);
+
+  /* --- Gráficas --- */
+  cLvl.data.labels = S.lvl.map((_, i) => (i * DT).toFixed(2));
+  cLvl.data.datasets[0].data = S.lvl;
+  cLvl.data.datasets[1].data = S.lvl.map(() => V.hmax);
+  cLvl.options.scales.y.suggestedMax = V.hmax * 1.08;
+  cLvl.update('none');
+
+  const dias = Array.from({length: 31}, (_, d) => d);
+  cCost.data.labels = dias;
+  cCost.data.datasets[0].data = dias.map(d => costo(Vday * d, Tef, V.fijo));
+  cCost.data.datasets[1].data = dias.map(() => V.fijo);
+  cCost.update('none');
+
+  const pts = Array.from({length: 61}, (_, i) => { const y = i / 60 * V.per / 2; return {x: y, y: areaCanal(y)}; });
+  cPar.data.datasets[0].data = pts;
+  cPar.data.datasets[1].data = [{x: ys, y: Amax}];
+  cPar.data.datasets[2].data = [{x: V.y, y: Ac}];
+  cPar.update('none');
+}
+
+/* ============ Escenarios y modal ============ */
+const PRESETS = {
+  normal: {qin: 30, qout: 27.5, h0: 3, dia: 0.30},
+  seca:   {qin: 18.5, qout: 34.2, h0: 3.5, dia: 0.30},
+  mitig:  {qin: 38, qout: 30.5, h0: 1.2, dia: 0.35}
+};
+document.querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => {
+  Object.entries(PRESETS[b.dataset.p]).forEach(([id, v]) => setVal(id, v));
+  update();
+}));
+$('openM').onclick = () => $('dlg').showModal();
+$('closeM').onclick = () => $('dlg').close();
+$('dlg').addEventListener('click', e => { if (e.target === $('dlg')) $('dlg').close(); });
+
+buildControls();
+initCharts();
+update();
+</script>
+</body>
+</html>
